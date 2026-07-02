@@ -1,1 +1,1 @@
-Cel perojektu: Stworzenie makra, które zmienia kolor tła i czcionki w zaznaczoncyh komórkach, oraz drugiego makra, które czyści komórki.
+Cel projektu: Stworzenie makra automatyzującego zmianę koloru tła oraz czcionki w zaznaczonym obszarze komórek, a także opracowanie drugiego skryptu służącego do resetowania formatowania i czyszczenia zawartości arkusza.
