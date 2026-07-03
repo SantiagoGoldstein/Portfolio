@@ -331,7 +331,7 @@ plot(garch_forecast, which = 3)
 ```
 
 ```{r}
-# 1. Zmienność historyczna (na zbiorze uczącym, od 1 do 415)
+# Historical volatility (training set, indices 1 to 415)
 hist_sigma <- as.numeric(sigma(garch_fit))
 hist_time <- seq(to = 415, length.out = length(hist_sigma))
 
@@ -340,50 +340,48 @@ hist_vol_df <- data.frame(
   Volatility = hist_sigma
 )
 
-# 2. Prognoza zmienności
+# Volatility forecast
 forecast_sigma <- as.numeric(sigma(garch_forecast))
 
-# Dynamiczne tworzenie osi czasu na podstawie FAKTYCZNEJ liczby wygenerowanych prognoz.
-# R sam sprawdzi, czy prognoz jest 10, 11 czy więcej i stworzy odpowiedni wektor od 416.
+# Dynamic creation of the time axis based on the number of generated forecasts
 forecast_time <- seq(from = 415, by = 1, length.out = length(forecast_sigma))
 
-# Łączymy z ostatnim punktem z historii (indeks 415), żeby linie się połączyły
+# Appending the last historical point (index 415) for line continuity
 forecast_vol_df <- data.frame(
   time = c(415, forecast_time),
   Volatility = c(hist_sigma[415], forecast_sigma)
 )
 
-# 3. Zmienność rzeczywista w okresie testowym
+# Realized volatility in the test period
 last_price <- dane$Close[415]
 test_prices <- c(last_price, test_df$value) 
 test_returns <- diff(log(test_prices))      
 
-# [POPRAWKA 2] Łączymy z ostatnim punktem z historii (indeks 415), żeby czerwona linia
-# gładko połączyła się z czarną linią historyczną
+# Appending the last historical point (index 415) for line continuity
 test_vol_df <- data.frame(
   time = c(415, test_df$time),  
   Volatility_Real = c(hist_sigma[415], abs(test_returns)) 
 )
 
-# 4. Rysowanie wykresu
+# Plot generation
 p_garch <- ggplot() +
-  # Historia GARCH (zbiór uczący do 415)
+  # GARCH history (training set up to 415)
   geom_line(data = hist_vol_df, aes(x = time, y = Volatility), color = "black", size = 0.8) +
   
-  # Prognoza GARCH (połączona z punktem 415, biegnąca do 425)
+  # GARCH forecast (connected to point 415, running up to 425)
   geom_line(data = forecast_vol_df, aes(x = time, y = Volatility), color = "blue", linetype = "dashed", size = 1) +
   
-  # Rzeczywista zmienność (połączona z punktem 415, biegnąca do 425)
+  # Realized volatility (connected to point 415, running up to 425)
   geom_line(data = test_vol_df, aes(x = time, y = Volatility_Real), color = "red", linetype = "dotted", size = 1, alpha = 0.8) +
   
-  # Zbliżenie na koniec historii i cały okres testowy
+  # Zooming in on the end of the historical data and the test period
   coord_cartesian(xlim = c(400, 425)) + 
   
-  labs(title = "S&P 500: Zmienność z modelu GARCH vs Rzeczywistość (Zbiór testowy)",
-       x = "Indeks czasu",
-       y = "Zmienność (Odchylenie / Abs(Zwrot))") +
+  labs(title = "S&P 500: GARCH Volatility vs Realized Volatility (Test Set)",
+       x = "Time Index",
+       y = "Volatility (Std. Dev. / Abs(Return))") +
   theme_minimal()
 
-# Wyświetlenie
+# Display the plot
 p_garch
 ```
