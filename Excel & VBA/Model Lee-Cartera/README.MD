@@ -1,4 +1,5 @@
 Model Lee-Cartera. Przedstawione dane mają charakter poglądowy i służą do demonstracji działania autorskiej funkcji zaimplementowanej w języku VBA.
+
 Funkcja:
 ```VBA
 Function LeeCarter(ax As Double, bx As Double, kt As Double) As Double
