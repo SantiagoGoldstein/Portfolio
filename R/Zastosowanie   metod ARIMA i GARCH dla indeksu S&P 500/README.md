@@ -17,3 +17,383 @@ HTML
 
 Wizualizacja: Kod zawiera zaawansowane wykresy porównujące prognozy modelu ARIMA (ceny z przedziałami ufności) oraz modelu GARCH (prognozowana zmienność) z rzeczywistymi danymi testowymi.  
 HTML
+
+Kod:
+---
+title: 'Modelowanie i prognozowanie zmienności na rynkach finansowych: Zastosowanie
+  metod ARIMA i GARCH dla indeksu S&P 500'
+output: html_document
+date: "2026-07-03"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+loading data and libraries
+```{r}
+setwd('/Users/jakubfelinski/Pulpit')
+dane = read.csv("sp500.csv", header = TRUE)
+options(OutDec = ",")
+library(fpp3)
+library(dplyr)
+library(tseries)
+library(forecast)
+library(randtests)
+library(ggplot2)
+library(rugarch)
+library(FinTS)
+```
+
+Standard score
+```{r, echo=TRUE}
+# prices time sereies
+close_dane = ts(dane$Close,start = 1, end= 415, frequency = 1)
+plot(close_dane)
+
+# log prices time sereies
+log_close_dane = log(close_dane)
+plot(log_close_dane)
+
+# simple rate of return
+dane$Simple_Return <- c(0, ((dane$Close[-1]  - dane$Close[-length(dane$Close)]) / dane$Close[-length(dane$Close)])*100)
+
+Simple_Return = ts(dane$Simple_Return, start = 1, end = 415, frequency = 1) 
+plot(Simple_Return)
+
+# logarithmic rate of return
+dane$Ln_Return <- c(NA, diff(log(dane$Close)))
+if (inherits(close_dane, "xts")) {
+  Ln_Return_for_arima <- diff(log(close_dane))
+} else if (inherits(close_dane, "ts")) {
+  Ln_Return_for_arima <- ts(dane$Ln_Return[!is.na(dane$Ln_Return)],
+                           start = time(close_dane)[2], frequency = frequency(close_dane))
+} else {
+  Ln_Return_for_arima <- dane$Ln_Return[!is.na(dane$Ln_Return)]
+}
+plot(Ln_Return_for_arima)
+
+#test data
+start_test_index <- 415 
+end_test_index <- 425   
+dane_subset <- dane$Close[415:425]
+test = ts(dane_subset, start = start_test_index, frequency = 1)
+dane_subset <- dane$Close[415:425]
+test = ts(dane_subset, start = start_test_index, frequency = 1)
+test_df <- fortify(test)
+if ("Index" %in% colnames(test_df)) {
+ colnames(test_df)[colnames(test_df) == "Index"] <- "time"
+} else if ("x" %in% colnames(test_df)) {
+ colnames(test_df)[colnames(test_df) == "x"] <- "time"
+}
+colnames(test_df)[colnames(test_df) == "y"] <- "value"
+
+#Standard deviation
+sd_1= sd(Simple_Return[-1])
+sd_2= 2*sd(Simple_Return[-1])
+sd_3= 3*sd(Simple_Return[-1])
+
+sd_minus1= -sd(Simple_Return[-1])
+sd_minus2= -2*sd(Simple_Return[-1])
+sd_minus3= -3*sd(Simple_Return[-1])
+
+# + standard deviation
+sd_1
+sd_2
+sd_3
+# - standard deviation
+sd_minus1
+sd_minus2
+sd_minus3
+# the same for simple return and logartimic return
+
+
+#distribution test
+shapiro.test(Simple_Return[-1])
+# Null Hypothesis (H0): The data comes from a normal distribution.
+# Alternative Hypothesis (H1): The data does not come from a normal distribution.
+# Result: W = 0.97969, p-value = 1.486e-05
+# Since the p-value (1.486e-05) is significantly smaller than the typical significance level (e.g., 0.05), we reject the null hypothesis. This means that the simple returns DO NOT have a normal distribution.
+jarque.bera.test(Simple_Return[-1])
+# Null Hypothesis (H0): The data comes from a normal distribution (i.e., skewness = 0 and kurtosis = 3).
+# Alternative Hypothesis (H1): The data does not come from a normal distribution.
+# X-squared = 37.861, df = 2, p-value = 6.007e-09
+# Since the p-value (6.007e-09) is significantly smaller than 0.05, we reject the null hypothesis. This confirms that the simple returns DO NOT have a normal distribution.
+#X-squared = 37,861, df = 2, p-value = 6,007e-09
+shapiro.test(Ln_Return_for_arima)
+# Null Hypothesis (H0): The data comes from a normal distribution.
+# Alternative Hypothesis (H1): The data does not come from a normal distribution.
+# shapiro.test(Ln_Return_for_arima)
+# W = 0.97014, p-value = 1.299e-07
+# Since the p-value (1.299e-07) is significantly smaller than 0.05, we reject the null hypothesis. The logarithmic returns also DO NOT have a normal distribution.
+jarque.bera.test(Ln_Return_for_arima)
+# Null Hypothesis (H0): The data comes from a normal distribution.
+# Alternative Hypothesis (H1): The data does not come from a normal distribution.
+# X-squared = 71.366, df = 2, p-value = 3.331e-16
+# Since the p-value (3.331e-16) is significantly smaller than 0.05, we reject the null hypothesis. This confirms that the logarithmic returns DO NOT have a normal distribution.
+# General conclusion for distribution tests: Both simple and logarithmic S&P500 returns do not have a normal distribution.
+
+# tests stationary 
+adf.test(Simple_Return[-1])
+# Null Hypothesis (H0): The time series HAS A UNIT ROOT (it is non-stationary).
+# Alternative Hypothesis (H1): The time series is stationary.
+# p-value usually < 0.05.
+# If the p-value is less than 0.05, we reject H0, which means the series is stationary.
+
+kpss.test(Simple_Return[-1])
+# Null Hypothesis (H0): The time series IS STATIONARY (around a deterministic mean/trend).
+# Alternative Hypothesis (H1): The time series is non-stationary.
+# #stationary (This is your comment in the code, the actual p-value will be in the console)
+# p-value usually > 0.05.
+# If the p-value is greater than 0.05, there is not enough evidence to reject H0, which means the series is stationary.
+
+adf.test(Ln_Return_for_arima)
+# Null Hypothesis (H0): The time series HAS A UNIT ROOT (it is non-stationary).
+# Alternative Hypothesis (H1): The time series is stationary.
+# adf.test(Ln_Return_for_arima)
+# p-value usually < 0.05.
+# We expect that logarithmic returns are stationary, so the p-value should be low.
+
+kpss.test(Ln_Return_for_arima)
+# Null Hypothesis (H0): The time series IS STATIONARY.
+# Alternative Hypothesis (H1): The time series is non-stationary.
+# p-value usually > 0.05.
+# We expect that logarithmic returns are stationary, so the p-value should be high.
+
+#trend test
+rank.test(Simple_Return)
+#trend
+rank.test(Ln_Return_for_arima)
+#trend
+
+
+no_stationary = diff(Simple_Return, 12)
+plot(no_stationary)
+
+no_trend= diff(diff(Simple_Return,1))
+plot(no_trend)
+
+```
+
+HETEROSKEDASTICITY TESTS (ARCH EFFECT / VOLATILITY CLUSTERING)
+```{r}
+
+# Ljung-Box test for squared returns
+# This is a classic method to check for "volatility clustering".
+# Square the logarithmic returns and examine the autocorrelation.
+cat("Ljung-Box test for squared returns \n")
+Box.test(Ln_Return_for_arima^2, lag = 12, type = "Ljung-Box")
+
+# INTERPRETATION: 
+# Null Hypothesis (H0): No autocorrelation in squared returns (variance is constant - homoskedasticity).
+# Alternative Hypothesis (H1): Autocorrelation exists in squared returns (heteroskedasticity).
+# If p-value < 0.05, we reject H0. This indicates that volatility depends on past values, necessitating a GARCH model.
+
+
+# Formal ARCH LM Test (Lagrange Multiplier Test)
+cat("ARCH LM test for conditional heteroskedasticity n")
+ArchTest(Ln_Return_for_arima, lags = 12, demean = TRUE)
+
+# INTERPRETATION:
+# Null Hypothesis (H0): No ARCH effect (the variance of the error term is constant over time).
+# Alternative Hypothesis (H1): ARCH effect is present (the variance of the error term changes over time).
+```
+
+Arima Model 
+```{r}
+#Arima model simple return
+arima_model = Arima(Ln_Return_for_arima, c(0,1,1)) # autoregersja
+summary(arima_model)
+# Assumes one differencing for the input data and an MA(1) component. The MA(1) coefficient close to -1 suggests potential over-differencing if the input data (returns) were already stationary. Information Criteria (AIC/AICc/BIC): Higher values (-1454.6 for AIC), indicating a poorer fit or more complexity for similar fit. Training set errors (RMSE, MAE, MASE): Slightly higher than the (0,0,0) model.
+acf(Ln_Return_for_arima) 
+pacf(Ln_Return_for_arima) 
+
+#forecast
+Optimal_arima <- auto.arima(Ln_Return_for_arima) #auto.arima automatically selects the optimal orders (p, d, q) for the ARIMA model, minimizing information criteria
+summary(Optimal_arima) 
+#Assumes no differencing (d=0), no AR or MA components. The only parameter is a constant mean (0.0067). Information Criteria (AIC/AICc/BIC): Lower values (-1465.11 for AIC), indicating a better fit and greater parsimony. Training set errors (RMSE, MAE, MASE): Minimally lower than the (0,1,1) model.
+#The fact that auto.arima selected ARIMA(0,0,0) with a non-zero mean is a very good sign. It implies that the logarithmic returns (Ln_Return_for_arima) are already fully stationary (due to logging and converting prices to returns) and behave like white noise with a certain mean. There are no linear patterns in their historical values that could be exploited to forecast future returns.
+
+
+Forecast_arima = Optimal_arima %>% forecast(h=10)
+summary(Forecast_arima$mean)
+# The summary(Forecast_arima$mean) result shows that the ARIMA(0,0,0) model forecasts a constant logarithmic rate of return equal to 0.00671 for all future periods. This is a natural consequence of the model finding no linear dependencies or trends in historical returns that could be used to forecast them beyond their mean.
+
+forecast_point <- exp(Forecast_arima$mean)
+forecast_lower_80 <- exp(Forecast_arima$lower[, "80%"])
+forecast_upper_80 <- exp(Forecast_arima$upper[, "80%"])
+forecast_lower_95 <- exp(Forecast_arima$lower[, "95%"])
+forecast_upper_95 <- exp(Forecast_arima$upper[, "95%"])
+last_price <- dane$Close[415]
+
+forecasted_prices_point <- numeric(length(forecast_point))
+forecasted_prices_point[1] <- last_price * forecast_point[1] 
+for (i in 2:length(forecast_point)) { 
+  forecasted_prices_point[i] <- forecasted_prices_point[i-1] * forecast_point[i] 
+}
+
+forecasted_prices_lower_80 <- numeric(length(forecast_lower_80))
+forecasted_prices_lower_80[1] <- last_price * forecast_lower_80[1]
+for (i in 2:length(forecast_lower_80)) { 
+  forecasted_prices_lower_80[i] <- forecasted_prices_lower_80[i-1] * forecast_lower_80[i]
+}
+
+forecasted_prices_upper_80 <- numeric(length(forecast_upper_80))
+forecasted_prices_upper_80[1] <- last_price * forecast_upper_80[1]
+for (i in 2:length(forecast_upper_80)) { 
+  forecasted_prices_upper_80[i] <- forecasted_prices_upper_80[i-1] * forecast_upper_80[i]
+}
+
+forecasted_prices_lower_95 <- numeric(length(forecast_lower_95))
+forecasted_prices_lower_95[1] <- last_price * forecast_lower_95[1]
+for (i in 2:length(forecast_lower_95)) { 
+  forecasted_prices_lower_95[i] <- forecasted_prices_lower_95[i-1] * forecast_lower_95[i]
+}
+
+forecasted_prices_upper_95 <- numeric(length(forecast_upper_95))
+forecasted_prices_upper_95[1] <- last_price * forecast_upper_95[1]
+for (i in 2:length(forecast_upper_95)) { 
+  forecasted_prices_upper_95[i] <- forecasted_prices_upper_95[i-1] * forecast_upper_95[i]
+}
+
+start_forecast_time_value <- last(time(Simple_Return))
+
+forecast_prices_df <- data.frame(
+  time = seq(from = start_forecast_time_value,
+             by = deltat(time(Simple_Return)),
+             length.out = length(forecasted_prices_point)),
+  Point = forecasted_prices_point,
+  Lo80 = forecasted_prices_lower_80,
+  Hi80 = forecasted_prices_upper_80,
+  Lo95 = forecasted_prices_lower_95,
+  Hi95 = forecasted_prices_upper_95
+)
+
+# SE
+sd_price_1 <- last_price * (sd_1 / 100)
+sd_price_2 <- last_price * (sd_2 / 100)
+sd_price_3 <- last_price * (sd_3 / 100)
+
+forecast_prices_df <- forecast_prices_df %>%
+  mutate(
+    SD1_Up = Point + sd_price_1,
+    SD1_Down = Point - sd_price_1,
+    SD2_Up = Point + sd_price_2,
+    SD2_Down = Point - sd_price_2,
+    SD3_Up = Point + sd_price_3,
+    SD3_Down = Point - sd_price_3
+  )
+
+p <- autoplot(close_dane) +
+  geom_line(data = forecast_prices_df, aes(x = time, y = Point), color = "blue", linetype = "dashed", size = 1) +
+  geom_ribbon(data = forecast_prices_df, aes(x = time, y = Point, ymin = Lo95, ymax = Hi95), fill = "lightgreen", alpha = 0.2) +
+  geom_ribbon(data = forecast_prices_df, aes(x = time, y = Point, ymin = Lo80, ymax = Hi80), fill = "skyblue", alpha = 0.3) + coord_cartesian(xlim = c(410,425)) + geom_line( data = test_df, aes(x = time, y = value ), color = "red",linetype = "dashed", size = 1, alpha = 1 ) + geom_line(data = forecast_prices_df, aes(x = time, y = SD1_Up), color = "purple", linetype = "dotted", size = 0.6) +
+geom_line(data = forecast_prices_df, aes(x = time, y = SD1_Down), color = "purple", linetype = "dotted", size = 0.6) +
+geom_line(data = forecast_prices_df, aes(x = time, y = SD2_Up), color = "darkgreen", linetype = "dotted", size = 0.6) +
+geom_line(data = forecast_prices_df, aes(x = time, y = SD2_Down), color = "darkgreen", linetype = "dotted", size = 0.6) +
+geom_line(data = forecast_prices_df, aes(x = time, y = SD3_Up), color = "darkred", linetype = "dotted", size = 0.6) +
+geom_line(data = forecast_prices_df, aes(x = time, y = SD3_Down), color = "darkred", linetype = "dotted", size = 0.6) +
+  labs(title = "Historical prices with forecast and confidence intervals
+",
+       x = "Time",
+       y = "Price") +
+  theme_minimal()
+p 
+```
+#This plot displays historical price data (black solid line) alongside a forecast and its confidence intervals. The x-axis represents "Time," and the y-axis represents "Cena" (Price).Here's a detailed description of the elements:Historical Prices (Black Solid Line): The black solid line shows the historical price trend up to approximately time point 415.Forecast (Blue Dashed Line): The blue dashed line represents the point forecast of future prices, starting from time point 416 and extending to 425. This is likely derived from an ARIMA model, as suggested by the code.Confidence Intervals of Forecast (Shaded Ribbons):The light blue shaded ribbon represents the 80% confidence interval for the forecast. This means there's an 80% probability that the actual future prices will fall within this range.The light green shaded ribbon represents the 95% confidence interval for the forecast. This wider band indicates a higher probability (95%) that the actual future prices will lie within this range. The confidence intervals widen over time, reflecting increasing uncertainty in longer-term forecasts.Standard Deviation Lines (Dotted Lines): Several dotted lines are visible around the blue forecast line, indicating ranges based on standard deviations:Purple Dotted Lines: These likely represent ±1 standard deviation from the forecasted price.Dark Green Dotted Lines: These likely represent ±2 standard deviations from the forecasted price.Dark Red Dotted Lines: These likely represent ±3 standard deviations from the forecasted price. These lines provide additional visual cues about the expected volatility or spread around the point forecast. They appear to be static deviations (i.e., not widening over time like the confidence intervals), suggesting they are based on a fixed standard deviation value (e.g., from historical returns) applied to the forecasted price.Actual Test Data (Red Dashed Line): The red dashed line, starting from time point 415 and extending to 425, represents the actual observed prices for the test period. This line allows for a visual comparison of how well the forecast aligns with the real-world outcome.In summary, the plot effectively visualizes a time series forecast, including its central prediction, statistical confidence bounds, and additional standard deviation-based ranges, all compared against actual test data. The coord_cartesian(xlim = c(400,425)) focuses the view on the end of the historical data, the forecast period, and the test data.
+
+Garch
+```{r}
+# GARCH(1,1) model specification
+# mean.model: ARMA(1,1) for the mean equation.
+# variance.model: Standard GARCH(1,1) for volatility.
+# distribution.model: "std" (Student's t-distribution) chosen due to the rejection of the normality hypothesis.
+garch_spec <- ugarchspec(
+  variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+  mean.model = list(armaOrder = c(1, 1), include.mean = TRUE),
+  distribution.model = "std" 
+)
+
+# Model estimation for logarithmic returns
+garch_fit <- ugarchfit(spec = garch_spec, data = Ln_Return_for_arima)
+
+# Model results summary (parameters and diagnostic tests)
+# Note the "alpha1" and "beta1" parameters.
+# If alpha1 + beta1 is close to 1, it indicates strong volatility persistence (volatility clustering).
+print(garch_fit)
+
+# Estimated conditional volatility over time
+# which = 3 generates the Conditional Volatility plot (conditional standard deviation).
+plot(garch_fit, which = 3) 
+# Q-Q plot to verify the fit of the Student's t-distribution
+# plot(garch_fit, which = 9)
+
+# Volatility forecast for the next 11 periods
+garch_forecast <- ugarchforecast(garch_fit, n.ahead = 11)
+
+# Display the calculated forecasts (Sigma represents the forecasted volatility)
+print(garch_forecast)
+
+# Volatility forecast plot
+plot(garch_forecast, which = 3)
+```
+
+```{r}
+# 1. Zmienność historyczna (na zbiorze uczącym, od 1 do 415)
+hist_sigma <- as.numeric(sigma(garch_fit))
+hist_time <- seq(to = 415, length.out = length(hist_sigma))
+
+hist_vol_df <- data.frame(
+  time = hist_time,
+  Volatility = hist_sigma
+)
+
+# 2. Prognoza zmienności
+forecast_sigma <- as.numeric(sigma(garch_forecast))
+
+# Dynamiczne tworzenie osi czasu na podstawie FAKTYCZNEJ liczby wygenerowanych prognoz.
+# R sam sprawdzi, czy prognoz jest 10, 11 czy więcej i stworzy odpowiedni wektor od 416.
+forecast_time <- seq(from = 415, by = 1, length.out = length(forecast_sigma))
+
+# Łączymy z ostatnim punktem z historii (indeks 415), żeby linie się połączyły
+forecast_vol_df <- data.frame(
+  time = c(415, forecast_time),
+  Volatility = c(hist_sigma[415], forecast_sigma)
+)
+
+# 3. Zmienność rzeczywista w okresie testowym
+last_price <- dane$Close[415]
+test_prices <- c(last_price, test_df$value) 
+test_returns <- diff(log(test_prices))      
+
+# [POPRAWKA 2] Łączymy z ostatnim punktem z historii (indeks 415), żeby czerwona linia
+# gładko połączyła się z czarną linią historyczną
+test_vol_df <- data.frame(
+  time = c(415, test_df$time),  
+  Volatility_Real = c(hist_sigma[415], abs(test_returns)) 
+)
+
+# 4. Rysowanie wykresu
+p_garch <- ggplot() +
+  # Historia GARCH (zbiór uczący do 415)
+  geom_line(data = hist_vol_df, aes(x = time, y = Volatility), color = "black", size = 0.8) +
+  
+  # Prognoza GARCH (połączona z punktem 415, biegnąca do 425)
+  geom_line(data = forecast_vol_df, aes(x = time, y = Volatility), color = "blue", linetype = "dashed", size = 1) +
+  
+  # Rzeczywista zmienność (połączona z punktem 415, biegnąca do 425)
+  geom_line(data = test_vol_df, aes(x = time, y = Volatility_Real), color = "red", linetype = "dotted", size = 1, alpha = 0.8) +
+  
+  # Zbliżenie na koniec historii i cały okres testowy
+  coord_cartesian(xlim = c(400, 425)) + 
+  
+  labs(title = "S&P 500: Zmienność z modelu GARCH vs Rzeczywistość (Zbiór testowy)",
+       x = "Indeks czasu",
+       y = "Zmienność (Odchylenie / Abs(Zwrot))") +
+  theme_minimal()
+
+# Wyświetlenie
+p_garch
+```
+```
+
