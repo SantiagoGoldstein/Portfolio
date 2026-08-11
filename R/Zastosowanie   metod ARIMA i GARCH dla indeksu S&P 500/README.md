@@ -1,3 +1,4 @@
+# Zastosowanie metod ARIMA i GARCH dla indeksu S&P 500
 Przygotowanie danych: Kod wczytuje notowania indeksu S&P 500, przeprowadza ich logarytmizację oraz oblicza logarytmiczne stopy zwrotu, które są podstawą dalszego modelowania szeregów czasowych.  
 
 Analiza statystyczna: Przeprowadzono testy normalności rozkładu (Shapiro-Wilk, Jarque-Bera), które potwierdziły, że stopy zwrotu S&P 500 nie mają rozkładu normalnego. Testy ADF i KPSS wykazały stacjonarność szeregów stóp zwrotu, a testy Mann-Kendall nie wskazały na występowanie istotnego trendu.  
