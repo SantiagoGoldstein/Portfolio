@@ -1,4 +1,4 @@
-#Model Lee-Cartera. 
+# Model Lee-Cartera. 
 Przedstawione dane mają charakter poglądowy i służą do demonstracji działania autorskiej funkcji zaimplementowanej w języku VBA.
 Funkcja:
 ```VBA
